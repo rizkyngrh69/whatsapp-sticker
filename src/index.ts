@@ -24,7 +24,6 @@ class WhatsAppStickerBot {
         console.log('Auth state loaded. Creating socket...');
         this.sock = makeWASocket({
             auth: state,
-            printQRInTerminal: true,
             logger: {
                 level: 'silent',
                 error: () => {},
@@ -40,7 +39,13 @@ class WhatsAppStickerBot {
                     debug: () => {},
                     trace: () => {}
                 })
-            } as any
+            } as any,
+            connectTimeoutMs: 60_000,
+            defaultQueryTimeoutMs: 60_000,
+            keepAliveIntervalMs: 30_000,
+            markOnlineOnConnect: false,
+            syncFullHistory: false,
+            generateHighQualityLinkPreview: true
         });
 
         this.sock.ev.on('connection.update', (update: any) => {
@@ -53,23 +58,34 @@ class WhatsAppStickerBot {
             });
             
             if (qr) {
-                console.log('\n=== QR CODE FOR WHATSAPP ===');
-                console.log('Please scan this QR code with your WhatsApp mobile app:');
+                const isRailway = process.env.RAILWAY_ENVIRONMENT;
+                
+                console.log('\n' + '='.repeat(50));
+                console.log('QR CODE FOR WHATSAPP AUTHENTICATION');
+                console.log('='.repeat(50));
+                console.log('Steps to connect:');
                 console.log('1. Open WhatsApp on your phone');
                 console.log('2. Go to Settings > Linked Devices');
                 console.log('3. Tap "Link a Device"');
-                console.log('4. Scan the QR code below:\n');
+                console.log('4. Scan the QR code below');
+                console.log('='.repeat(50));
                 
-                try {
-                    qrcode.generate(qr, { small: true });
-                } catch (error) {
-                    console.error('Failed to generate QR code in terminal:', error);
+                if (isRailway) {
+                    console.log('RAILWAY DEPLOYMENT DETECTED');
+                    console.log('Copy this QR data and use a QR generator:');
+                    console.log('QR DATA: ' + qr);
+                    console.log('Online QR Generator: https://www.qr-code-generator.com/');
+                } else {
+                    try {
+                        qrcode.generate(qr, { small: true });
+                        console.log('\nRaw QR Data: ' + qr);
+                    } catch (error) {
+                        console.error('Failed to generate terminal QR:', error);
+                        console.log('Raw QR Data: ' + qr);
+                    }
                 }
                 
-                console.log('\n=== RAW QR DATA ===');
-                console.log('QR Code Hash Data (you can convert this to QR image):');
-                console.log(qr);
-                console.log('====================\n');
+                console.log('='.repeat(50) + '\n');
             }
 
             if (connection === 'close') {
@@ -81,13 +97,20 @@ class WhatsAppStickerBot {
                 console.log('Error Code:', errorCode);
                 console.log('Should reconnect:', shouldReconnect);
                 
-                if (shouldReconnect) {
-                    console.log('Attempting to reconnect in 5 seconds...');
+                const isDeploymentEnv = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
+                if (errorCode === 405 && isDeploymentEnv) {
+                    console.log('Error 405 detected in deployment environment. QR code authentication is needed.');
+                    console.log('Check Railway logs for QR code or use local development for first-time setup.');
+                    return;
+                }
+                
+                if (shouldReconnect && errorCode !== 405) {
+                    console.log('Attempting to reconnect in 10 seconds...');
                     setTimeout(() => {
                         this.initializeBot();
-                    }, 5000);
+                    }, 10000);
                 } else {
-                    console.log('Bot logged out. Please restart the application.');
+                    console.log('Bot stopped. Authentication may be required.');
                 }
             } else if (connection === 'open') {
                 console.log('WhatsApp Bot connected successfully!');
@@ -229,7 +252,6 @@ class WhatsAppStickerBot {
 
             console.log('Converting video to GIF...');
             
-            // Send as video with gifPlayback flag for WhatsApp GIF functionality
             await this.sock.sendMessage(message.key.remoteJid!, {
                 video: buffer,
                 gifPlayback: true,
