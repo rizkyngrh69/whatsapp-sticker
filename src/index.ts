@@ -63,34 +63,7 @@ class WhatsAppStickerBot {
             });
             
             if (qr) {
-                const isRailway = process.env.RAILWAY_ENVIRONMENT;
-                
-                console.log('\n' + '='.repeat(50));
-                console.log('QR CODE FOR WHATSAPP AUTHENTICATION');
-                console.log('='.repeat(50));
-                console.log('Steps to connect:');
-                console.log('1. Open WhatsApp on your phone');
-                console.log('2. Go to Settings > Linked Devices');
-                console.log('3. Tap "Link a Device"');
-                console.log('4. Scan the QR code below');
-                console.log('='.repeat(50));
-                
-                if (isRailway) {
-                    console.log('RAILWAY DEPLOYMENT DETECTED');
-                    console.log('Copy this QR data and use a QR generator:');
-                    console.log('QR DATA: ' + qr);
-                    console.log('Online QR Generator: https://www.qr-code-generator.com/');
-                } else {
-                    try {
-                        qrcode.generate(qr, { small: true });
-                        console.log('\nRaw QR Data: ' + qr);
-                    } catch (error) {
-                        console.error('Failed to generate terminal QR:', error);
-                        console.log('Raw QR Data: ' + qr);
-                    }
-                }
-                
-                console.log('='.repeat(50) + '\n');
+                this.displayQRCode(qr);
             }
 
             if (connection === 'close') {
@@ -103,32 +76,20 @@ class WhatsAppStickerBot {
                 console.log('Should reconnect:', shouldReconnect);
                 
                 const isDeploymentEnv = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
-                if (errorCode === 405 && isDeploymentEnv) {
-                    console.log('\n' + '='.repeat(60));
-                    console.log('RAILWAY DEPLOYMENT AUTHENTICATION REQUIRED');
-                    console.log('='.repeat(60));
-                    console.log('Error 405: Connection method not allowed in Railway environment.');
-                    console.log('');
-                    console.log('SOLUTION:');
-                    console.log('1. Run the bot locally first to authenticate:');
-                    console.log('   npm run dev');
-                    console.log('2. Scan the QR code with your phone');
-                    console.log('3. After successful authentication, push auth files:');
-                    console.log('   git add auth_info_baileys/');
-                    console.log('   git commit -m "Add auth session"');
-                    console.log('   git push origin main');
-                    console.log('4. Redeploy on Railway');
-                    console.log('');
-                    console.log('The bot will then work on Railway with existing session.');
-                    console.log('='.repeat(60));
-                    return;
-                }
+
                 
-                if (shouldReconnect && errorCode !== 405) {
-                    console.log('Attempting to reconnect in 10 seconds...');
-                    setTimeout(() => {
-                        this.initializeBot();
-                    }, 10000);
+                if (shouldReconnect) {
+                    if (isDeploymentEnv && errorCode === 405) {
+                        console.log('Railway deployment detected. Will retry with QR generation...');
+                        setTimeout(() => {
+                            this.forceQRGeneration();
+                        }, 5000);
+                    } else {
+                        console.log('Attempting to reconnect in 10 seconds...');
+                        setTimeout(() => {
+                            this.initializeBot();
+                        }, 10000);
+                    }
                 } else {
                     console.log('Bot stopped. Authentication may be required.');
                 }
@@ -535,6 +496,99 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
         
         const randomResponse = responses[Math.floor(Math.random() * responses.length)];
         await this.sock.sendMessage(message.key.remoteJid!, { text: randomResponse });
+    }
+
+    private displayQRCode(qr: string): void {
+        const isRailway = process.env.RAILWAY_ENVIRONMENT;
+        
+        console.log('\n' + '='.repeat(60));
+        console.log('QR CODE FOR WHATSAPP AUTHENTICATION');
+        console.log('='.repeat(60));
+        console.log('Steps to connect:');
+        console.log('1. Open WhatsApp on your phone');
+        console.log('2. Go to Settings > Linked Devices');
+        console.log('3. Tap "Link a Device"');
+        console.log('4. Scan the QR code below');
+        console.log('='.repeat(60));
+        
+        if (isRailway) {
+            console.log('RAILWAY DEPLOYMENT - QR CODE GENERATION');
+            console.log('');
+            try {
+                console.log('ASCII QR CODE (scan directly from logs):');
+                qrcode.generate(qr, { small: true });
+            } catch (error) {
+                console.log('ASCII QR generation failed, showing raw data...');
+            }
+            console.log('');
+            console.log('RAW QR DATA (use online generator if ASCII fails):');
+            console.log(qr);
+            console.log('');
+            console.log('Online QR Generator: https://www.qr-code-generator.com/');
+            console.log('1. Copy the raw QR data above');
+            console.log('2. Paste it into the online generator');
+            console.log('3. Generate QR image');
+            console.log('4. Scan with WhatsApp mobile app');
+        } else {
+            try {
+                qrcode.generate(qr, { small: true });
+                console.log('');
+                console.log('Raw QR Data: ' + qr);
+            } catch (error) {
+                console.error('Failed to generate terminal QR:', error);
+                console.log('Raw QR Data: ' + qr);
+            }
+        }
+        
+        console.log('='.repeat(60) + '\n');
+    }
+
+    private async forceQRGeneration(): Promise<void> {
+        console.log('Force generating QR code for Railway deployment...');
+        
+        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
+        
+        this.sock = makeWASocket({
+            auth: state,
+            logger: {
+                level: 'silent',
+                error: () => {},
+                warn: () => {},
+                info: () => {},
+                debug: () => {},
+                trace: () => {},
+                child: () => ({
+                    level: 'silent',
+                    error: () => {},
+                    warn: () => {},
+                    info: () => {},
+                    debug: () => {},
+                    trace: () => {}
+                })
+            } as any,
+            connectTimeoutMs: 30_000,
+            defaultQueryTimeoutMs: 30_000,
+            keepAliveIntervalMs: 10_000
+        });
+
+        this.sock.ev.on('connection.update', (update: any) => {
+            const { connection, lastDisconnect, qr } = update;
+            
+            if (qr) {
+                this.displayQRCode(qr);
+            }
+
+            if (connection === 'close') {
+                console.log('QR generation attempt completed.');
+            } else if (connection === 'open') {
+                console.log('WhatsApp Bot connected successfully in Railway!');
+                console.log('Bot is ready to convert images to stickers!');
+                console.log('Started at:', new Date().toLocaleString());
+            }
+        });
+
+        this.sock.ev.on('creds.update', saveCreds);
+        this.sock.ev.on('messages.upsert', this.handleMessage.bind(this));
     }
 }
 
