@@ -167,6 +167,53 @@ The bot is structured to be easily extensible:
 - `ts-node` - TypeScript execution for development
 - `@types/node` - Node.js type definitions
 
+## Railway Deployment
+
+Deploy your bot to Railway for 24/7 operation.
+
+### Prerequisites
+- Railway account
+- GitHub repository
+
+### Deployment Process
+
+**IMPORTANT:** Railway environment blocks QR code authentication. You must authenticate locally first.
+
+#### Step 1: Local Authentication
+```bash
+# Run bot locally to authenticate
+npm run dev
+
+# Scan QR code with WhatsApp mobile app
+# After successful connection, press Ctrl+C
+```
+
+#### Step 2: Deploy to Railway
+```bash
+# Temporarily allow auth files in git
+cp .gitignore.deploy .gitignore
+
+# Add authenticated session files
+git add auth_info_baileys/
+git commit -m "Add WhatsApp auth session for Railway"
+git push origin main
+
+# Restore original gitignore
+git checkout .gitignore
+```
+
+#### Step 3: Railway Setup
+1. Go to [Railway](https://railway.app)
+2. Create new project from GitHub repository
+3. Railway will deploy with existing authentication
+4. Bot will be online 24/7
+
+### Important Notes
+- Authentication must be done locally first
+- Never share auth files publicly (use private repo)
+- Bot will maintain connection on Railway
+- Redeploy if authentication expires
+
 ## License
 
 MIT License - feel free to use this project for personal or commercial purposes.

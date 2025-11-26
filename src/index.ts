@@ -22,6 +22,9 @@ class WhatsAppStickerBot {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
         console.log('Auth state loaded. Creating socket...');
+        const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
+        console.log('Environment:', isRailway ? 'Railway Deployment' : 'Local Development');
+        
         this.sock = makeWASocket({
             auth: state,
             logger: {
@@ -40,12 +43,14 @@ class WhatsAppStickerBot {
                     trace: () => {}
                 })
             } as any,
-            connectTimeoutMs: 60_000,
-            defaultQueryTimeoutMs: 60_000,
-            keepAliveIntervalMs: 30_000,
+            connectTimeoutMs: isRailway ? 120_000 : 60_000,
+            defaultQueryTimeoutMs: isRailway ? 120_000 : 60_000,
+            keepAliveIntervalMs: isRailway ? 60_000 : 30_000,
             markOnlineOnConnect: false,
             syncFullHistory: false,
-            generateHighQualityLinkPreview: true
+            generateHighQualityLinkPreview: true,
+            retryRequestDelayMs: isRailway ? 5_000 : 1_000,
+            maxMsgRetryCount: isRailway ? 10 : 5
         });
 
         this.sock.ev.on('connection.update', (update: any) => {
@@ -99,8 +104,23 @@ class WhatsAppStickerBot {
                 
                 const isDeploymentEnv = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
                 if (errorCode === 405 && isDeploymentEnv) {
-                    console.log('Error 405 detected in deployment environment. QR code authentication is needed.');
-                    console.log('Check Railway logs for QR code or use local development for first-time setup.');
+                    console.log('\n' + '='.repeat(60));
+                    console.log('RAILWAY DEPLOYMENT AUTHENTICATION REQUIRED');
+                    console.log('='.repeat(60));
+                    console.log('Error 405: Connection method not allowed in Railway environment.');
+                    console.log('');
+                    console.log('SOLUTION:');
+                    console.log('1. Run the bot locally first to authenticate:');
+                    console.log('   npm run dev');
+                    console.log('2. Scan the QR code with your phone');
+                    console.log('3. After successful authentication, push auth files:');
+                    console.log('   git add auth_info_baileys/');
+                    console.log('   git commit -m "Add auth session"');
+                    console.log('   git push origin main');
+                    console.log('4. Redeploy on Railway');
+                    console.log('');
+                    console.log('The bot will then work on Railway with existing session.');
+                    console.log('='.repeat(60));
                     return;
                 }
                 
