@@ -22,6 +22,7 @@ class WhatsAppStickerBot {
         
         this.sock = makeWASocket({
             auth: state,
+            printQRInTerminal: true,
             logger: {
                 level: 'silent',
                 error: () => {},
@@ -45,7 +46,6 @@ class WhatsAppStickerBot {
             
             if (qr) {
                 console.log('QR Code generated. Scan it with your WhatsApp mobile app:');
-                qrcode.generate(qr, { small: true });
             }
 
             if (connection === 'close') {
