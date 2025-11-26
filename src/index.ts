@@ -24,6 +24,7 @@ class WhatsAppStickerBot {
         console.log('Auth state loaded. Creating socket...');
         this.sock = makeWASocket({
             auth: state,
+            printQRInTerminal: true,
             logger: {
                 level: 'silent',
                 error: () => {},
@@ -63,15 +64,22 @@ class WhatsAppStickerBot {
                     qrcode.generate(qr, { small: true });
                 } catch (error) {
                     console.error('Failed to generate QR code in terminal:', error);
-                    console.log('QR Code data:', qr);
                 }
                 
-                console.log('\n============================\n');
+                console.log('\n=== RAW QR DATA ===');
+                console.log('QR Code Hash Data (you can convert this to QR image):');
+                console.log(qr);
+                console.log('====================\n');
             }
 
             if (connection === 'close') {
                 const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                console.log('Connection closed:', lastDisconnect?.error?.message || 'Unknown error');
+                const errorCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                
+                console.log('Connection closed.');
+                console.log('Error:', lastDisconnect?.error?.message || 'Unknown error');
+                console.log('Error Code:', errorCode);
+                console.log('Should reconnect:', shouldReconnect);
                 
                 if (shouldReconnect) {
                     console.log('Attempting to reconnect in 5 seconds...');
