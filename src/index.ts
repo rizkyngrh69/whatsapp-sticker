@@ -18,8 +18,10 @@ class WhatsAppStickerBot {
     }
 
     private async initializeBot(): Promise<void> {
+        console.log('Initializing WhatsApp Bot...');
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
+        console.log('Auth state loaded. Creating socket...');
         this.sock = makeWASocket({
             auth: state,
             logger: {
@@ -43,9 +45,28 @@ class WhatsAppStickerBot {
         this.sock.ev.on('connection.update', (update: any) => {
             const { connection, lastDisconnect, qr } = update;
             
+            console.log('Connection update received:', {
+                connection: connection,
+                hasQr: !!qr,
+                hasLastDisconnect: !!lastDisconnect
+            });
+            
             if (qr) {
-                console.log('QR Code generated. Scan it with your WhatsApp mobile app:');
-                qrcode.generate(qr, { small: true });
+                console.log('\n=== QR CODE FOR WHATSAPP ===');
+                console.log('Please scan this QR code with your WhatsApp mobile app:');
+                console.log('1. Open WhatsApp on your phone');
+                console.log('2. Go to Settings > Linked Devices');
+                console.log('3. Tap "Link a Device"');
+                console.log('4. Scan the QR code below:\n');
+                
+                try {
+                    qrcode.generate(qr, { small: true });
+                } catch (error) {
+                    console.error('Failed to generate QR code in terminal:', error);
+                    console.log('QR Code data:', qr);
+                }
+                
+                console.log('\n============================\n');
             }
 
             if (connection === 'close') {
