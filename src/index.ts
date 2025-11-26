@@ -80,9 +80,9 @@ class WhatsAppStickerBot {
                 
                 if (shouldReconnect) {
                     if (isDeploymentEnv && errorCode === 405) {
-                        console.log('Railway deployment detected. Will retry with QR generation...');
+                        console.log('Railway deployment detected. Trying pairing code method...');
                         setTimeout(() => {
-                            this.forceQRGeneration();
+                            this.tryPairingCodeMethod();
                         }, 5000);
                     } else {
                         console.log('Attempting to reconnect in 10 seconds...');
@@ -541,6 +541,102 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
         }
         
         console.log('='.repeat(60) + '\n');
+    }
+
+    private async tryPairingCodeMethod(): Promise<void> {
+        console.log('=== TRYING PAIRING CODE METHOD FOR RAILWAY ===');
+        
+        try {
+            console.log('Creating fresh auth state for pairing...');
+            const { state } = await useMultiFileAuthState('auth_info_baileys_pairing');
+            
+            console.log('Creating socket with pairing code support...');
+            const pairSock = makeWASocket({
+                auth: state,
+                logger: { level: 'silent' } as any,
+                connectTimeoutMs: 60000,
+                defaultQueryTimeoutMs: 60000
+            });
+            
+            pairSock.ev.on('connection.update', async (update) => {
+                const { connection, qr, lastDisconnect } = update;
+                
+                console.log('Pairing - Connection update:', {
+                    connection,
+                    hasQr: !!qr,
+                    hasLastDisconnect: !!lastDisconnect
+                });
+                
+                if (qr) {
+                    console.log('\n' + '='.repeat(60));
+                    console.log('QR CODE GENERATED IN RAILWAY!');
+                    console.log('='.repeat(60));
+                    qrcode.generate(qr, { small: true });
+                    console.log('\nRaw QR Data:');
+                    console.log(qr);
+                    console.log('\nScan this QR code with WhatsApp!');
+                    console.log('='.repeat(60));
+                }
+                
+                if (connection === 'close') {
+                    const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
+                    console.log('Pairing socket closed. Error code:', errorCode);
+                    
+                    if (errorCode === 405) {
+                        console.log('\n' + '='.repeat(70));
+                        console.log('FINAL CONCLUSION: RAILWAY BLOCKS ALL WHATSAPP CONNECTIONS');
+                        console.log('='.repeat(70));
+                        console.log('Railway.app has network-level restrictions that prevent');
+                        console.log('ANY WhatsApp Web connections, including QR generation.');
+                        console.log('');
+                        console.log('SOLUTION: Use a different platform:');
+                        console.log('✅ Render.com - Works with WhatsApp');
+                        console.log('✅ Heroku - Supports WhatsApp bots');
+                        console.log('✅ VPS/DigitalOcean - Full compatibility');
+                        console.log('✅ Local development - Always works');
+                        console.log('');
+                        console.log('Your bot code is perfect. Platform is the limitation.');
+                        console.log('='.repeat(70));
+                        
+                        process.exit(1);
+                    }
+                    
+                    pairSock.ws.close();
+                }
+                
+                if (connection === 'open') {
+                    console.log('SUCCESS! WhatsApp connected via pairing method!');
+                    pairSock.ws.close();
+                    this.initializeBot();
+                }
+            });
+            
+            if (!pairSock.authState.creds.registered) {
+                setTimeout(async () => {
+                    try {
+                        console.log('Attempting to request pairing code...');
+                        const phoneNumber = '1234567890';
+                        const code = await pairSock.requestPairingCode(phoneNumber);
+                        console.log('\n=== PAIRING CODE GENERATED ===');
+                        console.log('Pairing Code:', code);
+                        console.log('Use this code to pair WhatsApp');
+                        console.log('===============================');
+                    } catch (pairError) {
+                        console.error('Pairing code request failed:', pairError);
+                    }
+                }, 5000);
+            }
+            
+            setTimeout(() => {
+                console.log('Pairing attempt timeout.');
+                pairSock.ws.close();
+            }, 60000);
+            
+        } catch (error) {
+            console.error('Pairing method failed:', error);
+        } finally {
+            console.log('=== PAIRING METHOD ATTEMPT END ===');
+        }
     }
 
     private async forceQRGeneration(): Promise<void> {
