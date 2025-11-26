@@ -1,0 +1,13 @@
+node_modules/
+dist/
+*.log
+.env*
+!.env.example
+*.session.json
+*.tgz
+.DS_Store
+Thumbs.db
+
+# Keep auth folder structure but ignore contents in git
+auth_info_baileys/*
+!auth_info_baileys/.gitkeep
