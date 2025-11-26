@@ -544,10 +544,25 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
     }
 
     private async forceQRGeneration(): Promise<void> {
+        console.log('=== DEBUGGING QR GENERATION FOR RAILWAY ===');
         console.log('Force generating QR code for Railway deployment...');
         
+        console.log('Step 1: Checking auth state...');
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
         
+        console.log('Auth state details:');
+        console.log('- Creds exists:', !!state.creds);
+        console.log('- Creds registered:', state.creds?.registered);
+        console.log('- Keys exist:', !!state.keys);
+        
+        console.log('Step 2: Forcing fresh auth state...');
+        // Clear registered status to force QR generation
+        if (state.creds) {
+            state.creds.registered = false;
+            console.log('- Cleared registered status');
+        }
+        
+        console.log('Step 3: Creating new socket with forced QR...');
         this.sock = makeWASocket({
             auth: state,
             logger: {
@@ -570,18 +585,31 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
             defaultQueryTimeoutMs: 30_000,
             keepAliveIntervalMs: 10_000
         });
+        
+        console.log('Step 4: Socket created. Waiting for events...');
 
         this.sock.ev.on('connection.update', (update: any) => {
             const { connection, lastDisconnect, qr } = update;
             
+            console.log('QR Generation - Connection update:', {
+                connection: connection,
+                hasQr: !!qr,
+                hasLastDisconnect: !!lastDisconnect,
+                qrLength: qr ? qr.length : 0
+            });
+            
             if (qr) {
+                console.log('SUCCESS! QR Code generated for Railway!');
+                console.log('QR Preview:', qr.substring(0, 50) + '...');
                 this.displayQRCode(qr);
             }
 
             if (connection === 'close') {
-                console.log('QR generation attempt completed.');
+                const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
+                console.log('QR socket closed. Error code:', errorCode);
+                console.log('=== QR GENERATION DEBUG END ===');
             } else if (connection === 'open') {
-                console.log('WhatsApp Bot connected successfully in Railway!');
+                console.log('SUCCESS! WhatsApp Bot connected in Railway!');
                 console.log('Bot is ready to convert images to stickers!');
                 console.log('Started at:', new Date().toLocaleString());
             }
