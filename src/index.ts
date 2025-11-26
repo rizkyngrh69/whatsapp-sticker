@@ -18,12 +18,8 @@ class WhatsAppStickerBot {
     }
 
     private async initializeBot(): Promise<void> {
-        console.log('Initializing WhatsApp Bot...');
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        
-        console.log('Auth state loaded. Creating socket...');
         const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
-        console.log('Environment:', isRailway ? 'Railway Deployment' : 'Local Development');
         
         this.sock = makeWASocket({
             auth: state,
@@ -56,11 +52,7 @@ class WhatsAppStickerBot {
         this.sock.ev.on('connection.update', (update: any) => {
             const { connection, lastDisconnect, qr } = update;
             
-            console.log('Connection update received:', {
-                connection: connection,
-                hasQr: !!qr,
-                hasLastDisconnect: !!lastDisconnect
-            });
+            if (connection) console.log('Connection:', connection);
             
             if (qr) {
                 this.displayQRCode(qr);
@@ -70,34 +62,28 @@ class WhatsAppStickerBot {
                 const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
                 const errorCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                 
-                console.log('Connection closed.');
-                console.log('Error:', lastDisconnect?.error?.message || 'Unknown error');
-                console.log('Error Code:', errorCode);
-                console.log('Should reconnect:', shouldReconnect);
+                console.log('Connection lost:', lastDisconnect?.error?.message || 'Unknown');
                 
                 const isDeploymentEnv = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
 
                 
                 if (shouldReconnect) {
                     if (isDeploymentEnv && errorCode === 405) {
-                        console.log('Railway deployment detected. Trying pairing code method...');
+                        console.log('Retrying connection...');
                         setTimeout(() => {
-                            this.tryPairingCodeMethod();
+                            this.useExistingAuth();
                         }, 5000);
                     } else {
-                        console.log('Attempting to reconnect in 10 seconds...');
+                        console.log('Reconnecting in 10s...');
                         setTimeout(() => {
                             this.initializeBot();
                         }, 10000);
                     }
                 } else {
-                    console.log('Bot stopped. Authentication may be required.');
+                    console.log('Bot stopped.');
                 }
             } else if (connection === 'open') {
-                console.log('WhatsApp Bot connected successfully!');
-                console.log('Bot is ready to convert images to stickers!');
-                console.log('Started at:', new Date().toLocaleString());
-                console.log('Send the bot an image to test the functionality!');
+                console.log('Bot connected and ready!');
             }
         });
 
@@ -122,20 +108,18 @@ class WhatsAppStickerBot {
 
         if (isImage || (isDocument && message.message?.documentMessage?.mimetype?.startsWith('image/'))) {
             try {
-                console.log('Processing image for sticker conversion...');
                 await this.convertToSticker(message);
             } catch (error) {
-                console.error('Error processing image:', error);
+                console.error('Image processing failed:', error);
                 await this.sock.sendMessage(message.key.remoteJid!, {
                     text: 'Maaf, saya tidak bisa memproses gambar tersebut. Silakan coba kirim gambar lain dalam format JPG, PNG, atau WebP.'
                 });
             }
         } else if (isVideo || (isDocument && message.message?.documentMessage?.mimetype?.startsWith('video/'))) {
             try {
-                console.log('Processing video for GIF conversion...');
                 await this.convertVideoToGif(message);
             } catch (error) {
-                console.error('Error processing video:', error);
+                console.error('Video processing failed:', error);
                 await this.sock.sendMessage(message.key.remoteJid!, {
                     text: 'Maaf, saya tidak bisa memproses video tersebut. Silakan coba kirim video lain dalam format MP4, MOV, atau AVI.'
                 });
@@ -543,17 +527,105 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
         console.log('='.repeat(60) + '\n');
     }
 
-    private async tryPairingCodeMethod(): Promise<void> {
-        console.log('=== TRYING PAIRING CODE METHOD FOR RAILWAY ===');
-        
+    private async useExistingAuth(): Promise<void> {
         try {
-            console.log('Creating fresh auth state for pairing...');
-            const { state } = await useMultiFileAuthState('auth_info_baileys_pairing');
+            const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
             
-            console.log('Creating socket with pairing code support...');
+            if (!state.creds?.registered && state.creds) {
+                state.creds.registered = true;
+            }
+            const authSock = makeWASocket({
+                auth: state,
+                logger: {
+                    level: 'silent',
+                    error: () => {},
+                    warn: () => {},
+                    info: () => {},
+                    debug: () => {},
+                    trace: () => {},
+                    child: () => ({
+                        level: 'silent',
+                        error: () => {},
+                        warn: () => {},
+                        info: () => {},
+                        debug: () => {},
+                        trace: () => {},
+                        child: () => ({
+                            level: 'silent',
+                            error: () => {},
+                            warn: () => {},
+                            info: () => {},
+                            debug: () => {},
+                            trace: () => {}
+                        })
+                    })
+                } as any,
+                connectTimeoutMs: 120000,
+                defaultQueryTimeoutMs: 120000,
+                keepAliveIntervalMs: 60000,
+                markOnlineOnConnect: false,
+                syncFullHistory: false
+            });
+            
+            authSock.ev.on('creds.update', saveCreds);
+            
+            authSock.ev.on('connection.update', (update) => {
+                const { connection, qr, lastDisconnect } = update;
+                
+                if (qr) {
+                    console.log('QR Code:');
+                    qrcode.generate(qr, { small: true });
+                    console.log('Raw QR:', qr);
+                }
+                
+                if (connection === 'open') {
+                    console.log('WhatsApp connected!');
+                    this.sock = authSock;
+                    this.sock.ev.on('messages.upsert', this.handleMessage.bind(this));
+                }
+                
+                if (connection === 'close') {
+                    const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
+                    if (errorCode === 405) {
+                        console.log('Platform blocks WhatsApp connections. Try Render.com or Heroku.');
+                    }
+                }
+            });
+            
+        } catch (error) {
+            console.error('Auth failed:', error);
+        }
+    }
+
+    private async tryPairingCodeMethod(): Promise<void> {
+        try {
+            const { state } = await useMultiFileAuthState('auth_info_baileys_pairing');
             const pairSock = makeWASocket({
                 auth: state,
-                logger: { level: 'silent' } as any,
+                logger: {
+                    level: 'silent',
+                    error: () => {},
+                    warn: () => {},
+                    info: () => {},
+                    debug: () => {},
+                    trace: () => {},
+                    child: () => ({
+                        level: 'silent',
+                        error: () => {},
+                        warn: () => {},
+                        info: () => {},
+                        debug: () => {},
+                        trace: () => {},
+                        child: () => ({
+                            level: 'silent',
+                            error: () => {},
+                            warn: () => {},
+                            info: () => {},
+                            debug: () => {},
+                            trace: () => {}
+                        })
+                    })
+                } as any,
                 connectTimeoutMs: 60000,
                 defaultQueryTimeoutMs: 60000
             });
@@ -561,51 +633,23 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
             pairSock.ev.on('connection.update', async (update) => {
                 const { connection, qr, lastDisconnect } = update;
                 
-                console.log('Pairing - Connection update:', {
-                    connection,
-                    hasQr: !!qr,
-                    hasLastDisconnect: !!lastDisconnect
-                });
-                
                 if (qr) {
-                    console.log('\n' + '='.repeat(60));
-                    console.log('QR CODE GENERATED IN RAILWAY!');
-                    console.log('='.repeat(60));
+                    console.log('QR Generated:');
                     qrcode.generate(qr, { small: true });
-                    console.log('\nRaw QR Data:');
-                    console.log(qr);
-                    console.log('\nScan this QR code with WhatsApp!');
-                    console.log('='.repeat(60));
+                    console.log('QR Data:', qr);
                 }
                 
                 if (connection === 'close') {
                     const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
-                    console.log('Pairing socket closed. Error code:', errorCode);
-                    
                     if (errorCode === 405) {
-                        console.log('\n' + '='.repeat(70));
-                        console.log('FINAL CONCLUSION: RAILWAY BLOCKS ALL WHATSAPP CONNECTIONS');
-                        console.log('='.repeat(70));
-                        console.log('Railway.app has network-level restrictions that prevent');
-                        console.log('ANY WhatsApp Web connections, including QR generation.');
-                        console.log('');
-                        console.log('SOLUTION: Use a different platform:');
-                        console.log('✅ Render.com - Works with WhatsApp');
-                        console.log('✅ Heroku - Supports WhatsApp bots');
-                        console.log('✅ VPS/DigitalOcean - Full compatibility');
-                        console.log('✅ Local development - Always works');
-                        console.log('');
-                        console.log('Your bot code is perfect. Platform is the limitation.');
-                        console.log('='.repeat(70));
-                        
+                        console.log('Platform incompatible. Use Render/Heroku/VPS.');
                         process.exit(1);
                     }
-                    
                     pairSock.ws.close();
                 }
                 
                 if (connection === 'open') {
-                    console.log('SUCCESS! WhatsApp connected via pairing method!');
+                    console.log('Connected via pairing!');
                     pairSock.ws.close();
                     this.initializeBot();
                 }
@@ -614,28 +658,18 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
             if (!pairSock.authState.creds.registered) {
                 setTimeout(async () => {
                     try {
-                        console.log('Attempting to request pairing code...');
-                        const phoneNumber = '1234567890';
-                        const code = await pairSock.requestPairingCode(phoneNumber);
-                        console.log('\n=== PAIRING CODE GENERATED ===');
+                        const code = await pairSock.requestPairingCode('1234567890');
                         console.log('Pairing Code:', code);
-                        console.log('Use this code to pair WhatsApp');
-                        console.log('===============================');
                     } catch (pairError) {
-                        console.error('Pairing code request failed:', pairError);
+                        console.error('Pairing failed:', pairError);
                     }
                 }, 5000);
             }
             
-            setTimeout(() => {
-                console.log('Pairing attempt timeout.');
-                pairSock.ws.close();
-            }, 60000);
+            setTimeout(() => pairSock.ws.close(), 60000);
             
         } catch (error) {
-            console.error('Pairing method failed:', error);
-        } finally {
-            console.log('=== PAIRING METHOD ATTEMPT END ===');
+            console.error('Pairing failed:', error);
         }
     }
 
