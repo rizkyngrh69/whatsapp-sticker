@@ -185,8 +185,16 @@ export class WhatsAppStickerBot {
                 throw new Error('Could not download media');
             }
 
+            const processedBuffer = await sharp(buffer, { animated: true })
+                .resize(512, 512, {
+                    fit: 'contain',
+                    background: { r: 0, g: 0, b: 0, alpha: 0 }
+                })
+                .gif()
+                .toBuffer();
+
             await this.sock.sendMessage(message.key.remoteJid!, {
-                video: buffer,
+                video: processedBuffer,
                 gifPlayback: true,
                 ptv: false
             });
