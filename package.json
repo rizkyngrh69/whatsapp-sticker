@@ -4,11 +4,11 @@
   "description": "WhatsApp bot that converts images into stickers",
   "main": "dist/index.js",
   "scripts": {
-    "build": "tsc",
-    "start": "node dist/index.js",
-    "dev": "ts-node src/index.ts",
-    "clean": "rimraf dist",
-    "postinstall": "npm run build"
+    "build": "bun build src/index.ts --outdir dist --target bun",
+    "start": "bun run src/index.ts",
+    "start:prod": "bun run dist/index.js",
+    "dev": "bun run --watch src/index.ts",
+    "clean": "rimraf dist"
   },
   "keywords": ["whatsapp", "bot", "sticker", "baileys", "typescript"],
   "author": "",
@@ -17,14 +17,12 @@
     "node": ">=18.0.0"
   },
   "devDependencies": {
-    "@types/node": "^20.8.0",
-    "@types/qrcode-terminal": "^0.12.0",
-    "rimraf": "^5.0.5",
-    "ts-node": "^10.9.1",
-    "typescript": "^5.2.2"
+    "@types/bun": "latest",
+    "rimraf": "^5.0.5"
   },
   "dependencies": {
-    "@whiskeysockets/baileys": "^6.7.8",
+    "elysia": "^1.1.27",
+    "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "sharp": "^0.32.6",
     "qrcode-terminal": "^0.12.0",
     "@hapi/boom": "^10.0.1"
