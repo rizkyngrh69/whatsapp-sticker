@@ -68,7 +68,6 @@ export class WhatsAppStickerBot {
                         trace: () => {}
                     })
                 } as any,
-                printQRInTerminal: true,
                 markOnlineOnConnect: false,
                 syncFullHistory: false,
                 generateHighQualityLinkPreview: false
