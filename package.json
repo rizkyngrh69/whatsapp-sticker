@@ -7,10 +7,7 @@
     "build": "tsc",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
-    "clean": "rimraf dist",
-    "deploy": "npm run build && npm start",
-    "auth-setup": "node -e \"console.log('Run: npm run dev, scan QR code, then run: npm run deploy-railway')\"",
-    "deploy-railway": "git add auth_info_baileys/ && git commit -m 'Add auth session for Railway' && git push origin main"
+    "clean": "rimraf dist"
   },
   "keywords": ["whatsapp", "bot", "sticker", "baileys", "typescript"],
   "author": "",
