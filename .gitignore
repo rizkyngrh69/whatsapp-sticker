@@ -7,6 +7,7 @@ dist/
 .DS_Store
 Thumbs.db
 
-# For deployment - include auth files
-# auth_info_baileys/*
-# !auth_info_baileys/.gitkeep
+# Auth files - excluded for fresh QR generation on deployment
+auth_info_baileys/
+*.session
+*.json.bak

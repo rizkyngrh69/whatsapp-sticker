@@ -12,6 +12,9 @@
   "keywords": ["whatsapp", "bot", "sticker", "baileys", "typescript"],
   "author": "",
   "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "devDependencies": {
     "@types/node": "^20.8.0",
     "@types/qrcode-terminal": "^0.12.0",

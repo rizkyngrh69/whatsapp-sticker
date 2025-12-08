@@ -19,7 +19,6 @@ class WhatsAppStickerBot {
 
     private async initializeBot(): Promise<void> {
         const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        const isRailway = !!process.env.RAILWAY_ENVIRONMENT;
         
         this.sock = makeWASocket({
             auth: state,
@@ -39,14 +38,14 @@ class WhatsAppStickerBot {
                     trace: () => {}
                 })
             } as any,
-            connectTimeoutMs: isRailway ? 120_000 : 60_000,
-            defaultQueryTimeoutMs: isRailway ? 120_000 : 60_000,
-            keepAliveIntervalMs: isRailway ? 60_000 : 30_000,
+            connectTimeoutMs: 60_000,
+            defaultQueryTimeoutMs: 60_000,
+            keepAliveIntervalMs: 30_000,
             markOnlineOnConnect: false,
             syncFullHistory: false,
             generateHighQualityLinkPreview: true,
-            retryRequestDelayMs: isRailway ? 5_000 : 1_000,
-            maxMsgRetryCount: isRailway ? 10 : 5
+            retryRequestDelayMs: 1_000,
+            maxMsgRetryCount: 5
         });
 
         this.sock.ev.on('connection.update', (update: any) => {
@@ -60,25 +59,14 @@ class WhatsAppStickerBot {
 
             if (connection === 'close') {
                 const shouldReconnect = (lastDisconnect?.error as Boom)?.output?.statusCode !== DisconnectReason.loggedOut;
-                const errorCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
                 
                 console.log('Connection lost:', lastDisconnect?.error?.message || 'Unknown');
                 
-                const isDeploymentEnv = process.env.RAILWAY_ENVIRONMENT || process.env.NODE_ENV === 'production';
-
-                
                 if (shouldReconnect) {
-                    if (isDeploymentEnv && errorCode === 405) {
-                        console.log('Retrying connection...');
-                        setTimeout(() => {
-                            this.useExistingAuth();
-                        }, 5000);
-                    } else {
-                        console.log('Reconnecting in 10s...');
-                        setTimeout(() => {
-                            this.initializeBot();
-                        }, 10000);
-                    }
+                    console.log('Reconnecting in 10s...');
+                    setTimeout(() => {
+                        this.initializeBot();
+                    }, 10000);
                 } else {
                     console.log('Bot stopped.');
                 }
@@ -483,7 +471,7 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
     }
 
     private displayQRCode(qr: string): void {
-        const isRailway = process.env.RAILWAY_ENVIRONMENT;
+        const isProduction = process.env.NODE_ENV === 'production';
         
         console.log('\n' + '='.repeat(60));
         console.log('QR CODE FOR WHATSAPP AUTHENTICATION');
@@ -495,8 +483,8 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
         console.log('4. Scan the QR code below');
         console.log('='.repeat(60));
         
-        if (isRailway) {
-            console.log('RAILWAY DEPLOYMENT - QR CODE GENERATION');
+        if (isProduction) {
+            console.log('RENDER DEPLOYMENT - QR CODE GENERATION');
             console.log('');
             try {
                 console.log('ASCII QR CODE (scan directly from logs):');
@@ -525,228 +513,6 @@ Kirim gambar atau video dan saya akan mengoptimasinya!`;
         }
         
         console.log('='.repeat(60) + '\n');
-    }
-
-    private async useExistingAuth(): Promise<void> {
-        try {
-            const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-            
-            if (!state.creds?.registered && state.creds) {
-                state.creds.registered = true;
-            }
-            const authSock = makeWASocket({
-                auth: state,
-                logger: {
-                    level: 'silent',
-                    error: () => {},
-                    warn: () => {},
-                    info: () => {},
-                    debug: () => {},
-                    trace: () => {},
-                    child: () => ({
-                        level: 'silent',
-                        error: () => {},
-                        warn: () => {},
-                        info: () => {},
-                        debug: () => {},
-                        trace: () => {},
-                        child: () => ({
-                            level: 'silent',
-                            error: () => {},
-                            warn: () => {},
-                            info: () => {},
-                            debug: () => {},
-                            trace: () => {}
-                        })
-                    })
-                } as any,
-                connectTimeoutMs: 120000,
-                defaultQueryTimeoutMs: 120000,
-                keepAliveIntervalMs: 60000,
-                markOnlineOnConnect: false,
-                syncFullHistory: false
-            });
-            
-            authSock.ev.on('creds.update', saveCreds);
-            
-            authSock.ev.on('connection.update', (update) => {
-                const { connection, qr, lastDisconnect } = update;
-                
-                if (qr) {
-                    console.log('QR Code:');
-                    qrcode.generate(qr, { small: true });
-                    console.log('Raw QR:', qr);
-                }
-                
-                if (connection === 'open') {
-                    console.log('WhatsApp connected!');
-                    this.sock = authSock;
-                    this.sock.ev.on('messages.upsert', this.handleMessage.bind(this));
-                }
-                
-                if (connection === 'close') {
-                    const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
-                    if (errorCode === 405) {
-                        console.log('Platform blocks WhatsApp connections. Try Render.com or Heroku.');
-                    }
-                }
-            });
-            
-        } catch (error) {
-            console.error('Auth failed:', error);
-        }
-    }
-
-    private async tryPairingCodeMethod(): Promise<void> {
-        try {
-            const { state } = await useMultiFileAuthState('auth_info_baileys_pairing');
-            const pairSock = makeWASocket({
-                auth: state,
-                logger: {
-                    level: 'silent',
-                    error: () => {},
-                    warn: () => {},
-                    info: () => {},
-                    debug: () => {},
-                    trace: () => {},
-                    child: () => ({
-                        level: 'silent',
-                        error: () => {},
-                        warn: () => {},
-                        info: () => {},
-                        debug: () => {},
-                        trace: () => {},
-                        child: () => ({
-                            level: 'silent',
-                            error: () => {},
-                            warn: () => {},
-                            info: () => {},
-                            debug: () => {},
-                            trace: () => {}
-                        })
-                    })
-                } as any,
-                connectTimeoutMs: 60000,
-                defaultQueryTimeoutMs: 60000
-            });
-            
-            pairSock.ev.on('connection.update', async (update) => {
-                const { connection, qr, lastDisconnect } = update;
-                
-                if (qr) {
-                    console.log('QR Generated:');
-                    qrcode.generate(qr, { small: true });
-                    console.log('QR Data:', qr);
-                }
-                
-                if (connection === 'close') {
-                    const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
-                    if (errorCode === 405) {
-                        console.log('Platform incompatible. Use Render/Heroku/VPS.');
-                        process.exit(1);
-                    }
-                    pairSock.ws.close();
-                }
-                
-                if (connection === 'open') {
-                    console.log('Connected via pairing!');
-                    pairSock.ws.close();
-                    this.initializeBot();
-                }
-            });
-            
-            if (!pairSock.authState.creds.registered) {
-                setTimeout(async () => {
-                    try {
-                        const code = await pairSock.requestPairingCode('1234567890');
-                        console.log('Pairing Code:', code);
-                    } catch (pairError) {
-                        console.error('Pairing failed:', pairError);
-                    }
-                }, 5000);
-            }
-            
-            setTimeout(() => pairSock.ws.close(), 60000);
-            
-        } catch (error) {
-            console.error('Pairing failed:', error);
-        }
-    }
-
-    private async forceQRGeneration(): Promise<void> {
-        console.log('=== DEBUGGING QR GENERATION FOR RAILWAY ===');
-        console.log('Force generating QR code for Railway deployment...');
-        
-        console.log('Step 1: Checking auth state...');
-        const { state, saveCreds } = await useMultiFileAuthState('auth_info_baileys');
-        
-        console.log('Auth state details:');
-        console.log('- Creds exists:', !!state.creds);
-        console.log('- Creds registered:', state.creds?.registered);
-        console.log('- Keys exist:', !!state.keys);
-        
-        console.log('Step 2: Forcing fresh auth state...');
-        // Clear registered status to force QR generation
-        if (state.creds) {
-            state.creds.registered = false;
-            console.log('- Cleared registered status');
-        }
-        
-        console.log('Step 3: Creating new socket with forced QR...');
-        this.sock = makeWASocket({
-            auth: state,
-            logger: {
-                level: 'silent',
-                error: () => {},
-                warn: () => {},
-                info: () => {},
-                debug: () => {},
-                trace: () => {},
-                child: () => ({
-                    level: 'silent',
-                    error: () => {},
-                    warn: () => {},
-                    info: () => {},
-                    debug: () => {},
-                    trace: () => {}
-                })
-            } as any,
-            connectTimeoutMs: 30_000,
-            defaultQueryTimeoutMs: 30_000,
-            keepAliveIntervalMs: 10_000
-        });
-        
-        console.log('Step 4: Socket created. Waiting for events...');
-
-        this.sock.ev.on('connection.update', (update: any) => {
-            const { connection, lastDisconnect, qr } = update;
-            
-            console.log('QR Generation - Connection update:', {
-                connection: connection,
-                hasQr: !!qr,
-                hasLastDisconnect: !!lastDisconnect,
-                qrLength: qr ? qr.length : 0
-            });
-            
-            if (qr) {
-                console.log('SUCCESS! QR Code generated for Railway!');
-                console.log('QR Preview:', qr.substring(0, 50) + '...');
-                this.displayQRCode(qr);
-            }
-
-            if (connection === 'close') {
-                const errorCode = (lastDisconnect?.error as any)?.output?.statusCode;
-                console.log('QR socket closed. Error code:', errorCode);
-                console.log('=== QR GENERATION DEBUG END ===');
-            } else if (connection === 'open') {
-                console.log('SUCCESS! WhatsApp Bot connected in Railway!');
-                console.log('Bot is ready to convert images to stickers!');
-                console.log('Started at:', new Date().toLocaleString());
-            }
-        });
-
-        this.sock.ev.on('creds.update', saveCreds);
-        this.sock.ev.on('messages.upsert', this.handleMessage.bind(this));
     }
 }
 
