@@ -20,4 +20,4 @@ EXPOSE 3000
 ENV NODE_ENV=production
 
 # Start the application
-CMD ["bun", "run", "src/index.ts"]
+CMD ["bun", "src/index.ts"]
