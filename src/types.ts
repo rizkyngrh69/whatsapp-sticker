@@ -1,5 +1,3 @@
-import { Static, t } from 'elysia';
-
 export interface StickerOptions {
     quality?: number;
     background?: { r: number; g: number; b: number; alpha: number };
@@ -32,64 +30,33 @@ export const defaultConfig: BotConfig = {
     }
 };
 
-export const BotStatus = t.Union([
-  t.Literal('connected'),
-  t.Literal('disconnected'),
-  t.Literal('initializing')
-]);
+export interface HealthResponse {
+  status: 'healthy';
+  timestamp: string;
+  bot: 'connected' | 'disconnected' | 'initializing';
+  uptime?: number;
+  memory?: NodeJS.MemoryUsage;
+}
 
-// API Response
-export const HealthResponseSchema = t.Object({
-  status: t.Literal('healthy'),
-  timestamp: t.String({ format: 'date-time' }),
-  bot: BotStatus,
-  uptime: t.Optional(t.Number()),
-  memory: t.Optional(t.Object({
-    rss: t.Number(),
-    heapTotal: t.Number(),
-    heapUsed: t.Number(),
-    external: t.Number(),
-  }))
-});
+export interface QRResponse {
+  qr?: string;
+  message: string;
+  timestamp: string;
+}
 
-export const QRSuccessResponseSchema = t.Object({
-  qr: t.String(),
-  message: t.String(),
-  timestamp: t.String({ format: 'date-time' })
-});
+export interface RestartResponse {
+  message?: string;
+  error?: string;
+  details?: string;
+  timestamp: string;
+}
 
-export const MessageResponseSchema = t.Object({
-  message: t.String(),
-  timestamp: t.String({ format: 'date-time' })
-});
-
-export const QRResponseSchema = t.Union([
-  QRSuccessResponseSchema,
-  MessageResponseSchema
-]);
-
-export const RestartSuccessResponseSchema = t.Object({
-  message: t.String(),
-  timestamp: t.String({ format: 'date-time' })
-});
-
-export const ErrorResponseSchema = t.Object({
-  error: t.String(),
-  message: t.Optional(t.String()),
-  details: t.Optional(t.String()),
-  timestamp: t.String({ format: 'date-time' })
-});
-
-export const RestartResponseSchema = t.Union([
-  RestartSuccessResponseSchema,
-  ErrorResponseSchema
-]);
-
-export type HealthResponse = Static<typeof HealthResponseSchema>;
-export type QRResponse = Static<typeof QRResponseSchema>;
-export type RestartResponse = Static<typeof RestartResponseSchema>;
-export type ErrorResponse = Static<typeof ErrorResponseSchema>;
-export type BotStatusType = Static<typeof BotStatus>;
+export interface ErrorResponse {
+  error: string;
+  message?: string;
+  details?: string;
+  timestamp: string;
+}
 
 export interface ProcessedMessage {
   id: string;

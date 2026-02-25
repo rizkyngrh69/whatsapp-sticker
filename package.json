@@ -23,7 +23,6 @@
     "tsx": "^4.7.0"
   },
   "dependencies": {
-    "elysia": "^1.1.27",
     "@whiskeysockets/baileys": "^7.0.0-rc.9",
     "sharp": "^0.32.6",
     "qrcode-terminal": "^0.12.0",
