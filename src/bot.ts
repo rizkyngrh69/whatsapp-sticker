@@ -3,7 +3,9 @@ import makeWASocket, {
     useMultiFileAuthState, 
     downloadMediaMessage,
     WAMessage,
-    getContentType
+    getContentType,
+    makeCacheableSignalKeyStore,
+    fetchLatestBaileysVersion
 } from '@whiskeysockets/baileys';
 import { Boom } from '@hapi/boom';
 import qrcode from 'qrcode-terminal';
@@ -11,6 +13,7 @@ import sharp from 'sharp';
 import path from 'path';
 import fs from 'fs';
 import { defaultConfig, type BotConfig, type StickerOptions } from './types';
+import pino from 'pino';
 
 export class WhatsAppStickerBot {
     private sock: ReturnType<typeof makeWASocket> | null = null;
@@ -43,25 +46,19 @@ export class WhatsAppStickerBot {
     private async initializeBot() {
         try {
             const { state, saveCreds } = await useMultiFileAuthState(this.config.authPath);
+            const { version, isLatest } = await fetchLatestBaileysVersion();
+            console.log(`[Baileys] Using version ${version.join('.')}, isLatest: ${isLatest}`);
+
+            const logger = pino({ level: 'warn' });
             
             this.sock = makeWASocket({
-                auth: state,
-                logger: {
-                    level: 'silent',
-                    error: () => {},
-                    warn: () => {},
-                    info: () => {},
-                    debug: () => {},
-                    trace: () => {},
-                    child: () => ({
-                        level: 'silent',
-                        error: () => {},
-                        warn: () => {},
-                        info: () => {},
-                        debug: () => {},
-                        trace: () => {}
-                    })
-                } as any,
+                version,
+                auth: {
+                    creds: state.creds,
+                    keys: makeCacheableSignalKeyStore(state.keys, logger)
+                },
+                logger,
+                browser: ['WhatsApp Sticker Bot', 'Chrome', '120.0.0'],
                 markOnlineOnConnect: false,
                 syncFullHistory: false,
                 generateHighQualityLinkPreview: false,
@@ -69,7 +66,9 @@ export class WhatsAppStickerBot {
                 shouldIgnoreJid: () => false,
                 getMessage: async (key) => {
                     return undefined;
-                }
+                },
+                connectTimeoutMs: 60000,
+                retryRequestDelayMs: 2000,
             });
 
             this.sock.ev.on('connection.update', (update: any) => {
