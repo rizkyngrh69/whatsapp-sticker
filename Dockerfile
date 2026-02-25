@@ -1,14 +1,15 @@
-# Use the official Bun image
-FROM oven/bun:1
+FROM node:20-slim
 
-# Set the working directory
 WORKDIR /app
+
+# Install bun for building/running TypeScript
+RUN npm install -g bun
 
 # Copy package files
 COPY package.json bun.lockb* ./
 
-# Install dependencies
-RUN bun install --frozen-lockfile
+# Install dependencies with npm (uses Node.js native modules)
+RUN npm install
 
 # Copy source code
 COPY . .
@@ -19,5 +20,6 @@ EXPOSE 3000
 # Set environment variable
 ENV NODE_ENV=production
 
-# Start the application
-CMD ["bun", "src/index.ts"]
+# Run with Node.js + tsx for TypeScript support
+RUN npm install -g tsx
+CMD ["tsx", "src/index.ts"]

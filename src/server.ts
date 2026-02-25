@@ -48,7 +48,7 @@ const app = new Elysia()
   .get("/", () => ({
     message: "WhatsApp Sticker Bot is running!",
     timestamp: new Date().toISOString(),
-    endpoints: ['/health', '/qr', '/restart', '/config']
+    endpoints: ['/health', '/qr', '/qr/image', '/restart', '/config']
   }))
   .get("/health", (): HealthResponse => ({ 
     status: "healthy" as const, 
@@ -78,12 +78,12 @@ const app = new Elysia()
     if (qr) {
       return { 
         qr,
-        message: "Scan this QR code with WhatsApp",
+        message: "Scan this QR code with WhatsApp. Or visit /qr/image for a scannable QR image.",
         timestamp
       };
     }
     return { 
-      message: bot.isConnected() ? "Bot is already connected" : "QR code not available yet",
+      message: bot.isConnected() ? "Bot is already connected" : "QR code not available yet. Refresh in a few seconds.",
       timestamp
     };
   }, {
@@ -92,6 +92,53 @@ const app = new Elysia()
       tags: ['QR Code'],
       summary: 'Get QR code for WhatsApp connection',
       description: 'Returns the QR code that needs to be scanned with WhatsApp'
+    }
+  })
+  .get("/qr/image", async ({ set }) => {
+    if (!bot) {
+      set.status = 503;
+      return new Response(`<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2>Bot is still initializing...</h2>
+        <p>Please refresh in a few seconds.</p>
+        <script>setTimeout(()=>location.reload(),3000)</script>
+      </body></html>`, { headers: { 'Content-Type': 'text/html' } });
+    }
+
+    if (bot.isConnected()) {
+      return new Response(`<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2 style="color:green">✅ Bot is already connected!</h2>
+      </body></html>`, { headers: { 'Content-Type': 'text/html' } });
+    }
+
+    const qr = bot.getQRCode();
+    if (!qr) {
+      set.status = 404;
+      return new Response(`<html><body style="font-family:sans-serif;text-align:center;padding:40px">
+        <h2>QR code not available yet</h2>
+        <p>Please refresh in a few seconds.</p>
+        <script>setTimeout(()=>location.reload(),3000)</script>
+      </body></html>`, { headers: { 'Content-Type': 'text/html' } });
+    }
+
+    // Generate QR code as inline SVG using a simple QR rendering approach
+    const html = `<html>
+      <head><title>WhatsApp QR Code</title></head>
+      <body style="font-family:sans-serif;text-align:center;padding:40px;background:#f0f0f0">
+        <h2>Scan QR Code with WhatsApp</h2>
+        <div style="background:white;display:inline-block;padding:20px;border-radius:12px;box-shadow:0 2px 10px rgba(0,0,0,0.1)">
+          <img src="https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(qr)}" alt="QR Code" width="300" height="300" />
+        </div>
+        <p style="color:#666;margin-top:16px">QR code expires quickly. Refresh if it doesn't work.</p>
+        <script>setTimeout(()=>location.reload(),20000)</script>
+      </body>
+    </html>`;
+
+    return new Response(html, { headers: { 'Content-Type': 'text/html' } });
+  }, {
+    detail: {
+      tags: ['QR Code'],
+      summary: 'View QR code as scannable image in browser',
+      description: 'Renders the QR code as an HTML page with a scannable image'
     }
   })
   .post("/restart", async (): Promise<RestartResponse> => {

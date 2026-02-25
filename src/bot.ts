@@ -75,11 +75,16 @@ export class WhatsAppStickerBot {
             this.sock.ev.on('connection.update', (update: any) => {
                 const { connection, lastDisconnect, qr, isNewLogin, isOnline } = update;
                 
+                console.log('[Connection Update]', JSON.stringify({ connection, hasQR: !!qr, isNewLogin, isOnline }));
+                
                 if (qr && !this.connected) {
                     this.currentQR = qr;
                     this.displayQRCode(qr);
                 } else if (connection === 'close') {
                     const errorCode = (lastDisconnect?.error as Boom)?.output?.statusCode;
+                    const errorMessage = (lastDisconnect?.error as Boom)?.message || 'Unknown error';
+                    
+                    console.log(`[Connection Closed] Code: ${errorCode}, Reason: ${errorMessage}`);
                     
                     this.connected = false;
                     this.currentQR = null;
@@ -343,20 +348,18 @@ export class WhatsAppStickerBot {
     }
 
     private displayQRCode(qr: string): void {
-        const isProduction = process.env.NODE_ENV === 'production';
-        
-        if (isProduction) {
-            try {
-                qrcode.generate(qr, { small: true });
-            } catch (error) {}
-            console.log(qr);
-        } else {
-            try {
-                qrcode.generate(qr, { small: true });
-                console.log('Raw QR Data: ' + qr);
-            } catch (error) {
-                console.log('Raw QR Data: ' + qr);
-            }
+        console.log('\n========== QR CODE ==========');
+        console.log('Scan this QR code with WhatsApp:');
+        console.log('Raw QR Data:', qr);
+        console.log('Or visit /qr endpoint in your browser');
+        console.log('=============================\n');
+
+        try {
+            qrcode.generate(qr, { small: true }, (code: string) => {
+                console.log(code);
+            });
+        } catch (error) {
+            console.error('Failed to render QR in terminal:', error);
         }
     }
 }
