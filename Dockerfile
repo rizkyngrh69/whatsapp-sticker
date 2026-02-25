@@ -2,13 +2,13 @@ FROM node:20-slim
 
 WORKDIR /app
 
-# Install bun for building/running TypeScript
-RUN npm install -g bun
+# Install git and other build essentials needed by some npm packages
+RUN apt-get update && apt-get install -y git && rm -rf /var/lib/apt/lists/*
 
 # Copy package files
-COPY package.json bun.lockb* ./
+COPY package.json package-lock.json* ./
 
-# Install dependencies with npm (uses Node.js native modules)
+# Install dependencies
 RUN npm install
 
 # Copy source code
